@@ -1,9 +1,16 @@
-# 打造韌性城市之停電預測挑戰賽
+* submit_dc_20171016_2356
+  Change magic number
+    # megi_pred <- 1.48*soudelor_pred
+    megi_pred <- 1.45*soudelor_pred
 
-## 資料夾說明
-- R, R code 
-- data, 所有用到的資料集
-- src, 各種補助資源
+    # nesatAndHaitang_pred <- 1.45*meranti_pred
+    nesatAndHaitang_pred <- 1.53*meranti_pred
 
-# Authors
-* [**Li Cheng En**](https://github.com/nondayo)
+* submit_dc_20171017_0224.csv
+  Correct pole village info
+
+* submit_dc_20171017_0253.csv
+  Use the original magic number
+
+
+
