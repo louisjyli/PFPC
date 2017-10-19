@@ -13,6 +13,12 @@ library(tidyverse)
 library(rJava)
 source("./R/util.R")
 
+# =================================================================================================
+
+pd_path <- paste(c(getwd(), "/prediction/"), collapse='')
+if ( !dir.exists(pd_path) ) { 
+    dir.create(pd_path) 
+} 
 
 # =================================================================================================
 
@@ -28,6 +34,20 @@ submit <- read.csv("./data/submit.csv", fileEncoding="UTF-8")
 pole   <- read.csv("./data/pole.csv",   fileEncoding="UTF-8", stringsAsFactors=F)
 family <- read.csv("./data/family.csv", fileEncoding="UTF-8", stringsAsFactors=F)
 gust   <- read.csv("./data/gust.csv",   fileEncoding="UTF-8")
+
+# =================================================================================================
+# Define column and row index
+
+col_tp      <- c("Hagibis", "Chan.hom", "Dujuan", "Soudelor", "Fung.wong", "Matmo", "Nepartak", "MerantiAndMalakas")
+col_feature <- c("pole1", "pole2", "pole3", "pole4", "pole5", "pole6", "pole7", "pole8", "pole9", "pole10", "household", "maxWind", "gust")
+
+tmp_sum <- rowSums(train[, col_tp])
+row_zero <- which(tmp_sum == 0)
+row_none_zero <- which(tmp_sum > 0)
+
+sprintf("total rows: %d, zero: %d, non-zero: %d", NROW(tmp_sum), NROW(row_zero), NROW(row_none_zero))
+
+# =================================================================================================
 
 train$key  <- paste0(train$CityName, train$TownName, train$VilName) 
 
@@ -61,17 +81,12 @@ library(randomForest)
 names(soudelor)[18:19] <- c("maxWind", "gust")
 names(megi)[16:17]     <- c("maxWind", "gust")
 soudelor_rf <- randomForest(Soudelor~., data=soudelor[, -c(1:5)])
-soudelor_pred <- predict(soudelor_rf, newdata=megi[5:17])
-
-# megi_pred <- 1.45*soudelor_pred
-# megi_pred <- soudelor_pred
+soudelor_pred <- predict(soudelor_rf, newdata=soudelor[col_feature])
 
 names(meranti)[18:19]         <- c("maxWind", "gust")
 names(nesatAndHaitang)[16:17] <- c("maxWind", "gust")
 meranti_rf <- randomForest(MerantiAndMalakas~., data=meranti[, -c(1:5)])
-meranti_pred <- predict(meranti_rf, newdata=nesatAndHaitang[5:17])
-# nesatAndHaitang_pred <- 1.53*meranti_pred
-# nesatAndHaitang_pred <- meranti_pred
+meranti_pred <- predict(meranti_rf, newdata=meranti[col_feature])
 
 # =================================================================================================
 
@@ -107,19 +122,26 @@ Scoring(pred, real)
 pred_1 = soudelor_pred
 pred_2 = meranti_pred
 
-pred_1[soudelor$Soudelor == 0] <- 0
-pred_2[meranti$MerantiAndMalakas == 0] <- 0
+pred <- cbind(pred_1, pred_2)
+real <- cbind(soudelor$Soudelor, meranti$MerantiAndMalakas)
+Scoring(pred, real)
+
+pred_1[row_zero] <- 0
+pred_2[row_zero] <- 0
 
 pred <- cbind(pred_1, pred_2)
 real <- cbind(soudelor$Soudelor, meranti$MerantiAndMalakas)
 Scoring(pred, real)
 
-pred <- cbind(pred_1*magic_1, pred_2*magic_2)
-Scoring(pred, real)
-
 # =================================================================================================
 
-submit_dc <- cbind(submit[1:4], nesatAndHaitang_pred) %>% 
-             cbind(megi_pred)
+megi_pred            <- predict(soudelor_rf, newdata=megi[col_feature]) * 1.45
+nesatAndHaitang_pred <- predict(meranti_rf,  newdata=nesatAndHaitang[col_feature]) * 1.53
+
+megi_pred[row_zero] <- 0
+nesatAndHaitang_pred[row_zero] <- 0
+
+f_submit <- paste(c(pd_path, "submit_dc_", format(Sys.time(), "%m%d_%H%M%S"), ".csv"), collapse='')
+submit_dc <- cbind(submit[1:4], nesatAndHaitang_pred) %>% cbind(megi_pred)
 names(submit_dc)[5:6] <- c("NesatAndHaitang", "Megi")
-write.csv(submit_dc, file="submit_dc.csv", row.names=FALSE, fileEncoding="UTF-8")
+write.csv(submit_dc, file=f_submit, row.names=FALSE, fileEncoding="UTF-8")
