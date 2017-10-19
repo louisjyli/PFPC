@@ -41,15 +41,15 @@
   - Integrating village-level data of pole, family (instead of district-level)
 
 * submit_dc_20171016_2356
-    Change magic number
-    megi_pred <- 1.48 x soudelor_pred
-    megi_pred <- 1.45 x soudelor_pred
+  - Change magic number
+  - megi_pred <- 1.48 x soudelor_pred
+  - megi_pred <- 1.45 x soudelor_pred
 
-    nesatAndHaitang_pred <- 1.45 x meranti_pred
-    nesatAndHaitang_pred <- 1.53 x meranti_pred
+  - nesatAndHaitang_pred <- 1.45 x meranti_pred
+  - nesatAndHaitang_pred <- 1.53 x meranti_pred
 
 * submit_dc_20171017_0224.csv
-  Correct pole village info
+  - Correct pole village info
 
 * submit_dc_20171017_0253.csv
-  Use the original magic number
+  - Use the original magic number
