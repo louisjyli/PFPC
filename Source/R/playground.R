@@ -6,11 +6,13 @@
 # install.packages("randomForest")
 # install.packages("rJava")
 
+# setwd("~/Work/git/Power_Failure_Prediction/Source")
+setwd("~/Repo/Frank/Power_Failure_Prediction/Source")
+
 library(tidyverse)
 library(rJava)
 source("./R/util.R")
 
-setwd("~/Work/git/Power_Failure_Prediction/Source")
 
 # =================================================================================================
 
@@ -60,7 +62,7 @@ names(soudelor)[18:19] <- c("maxWind", "gust")
 names(megi)[16:17]     <- c("maxWind", "gust")
 soudelor_rf <- randomForest(Soudelor~., data=soudelor[, -c(1:5)])
 soudelor_pred <- predict(soudelor_rf, newdata=megi[5:17])
-megi_pred <- 1.48*soudelor_pred
+
 # megi_pred <- 1.45*soudelor_pred
 # megi_pred <- soudelor_pred
 
@@ -68,14 +70,51 @@ names(meranti)[18:19]         <- c("maxWind", "gust")
 names(nesatAndHaitang)[16:17] <- c("maxWind", "gust")
 meranti_rf <- randomForest(MerantiAndMalakas~., data=meranti[, -c(1:5)])
 meranti_pred <- predict(meranti_rf, newdata=nesatAndHaitang[5:17])
-nesatAndHaitang_pred <- 1.45*meranti_pred
 # nesatAndHaitang_pred <- 1.53*meranti_pred
 # nesatAndHaitang_pred <- meranti_pred
 
 # =================================================================================================
 
+magic_1 = mean(soudelor[soudelor$Soudelor != 0,17] / soudelor_pred[soudelor$Soudelor != 0])
+magic_2 = mean(meranti[meranti$MerantiAndMalakas != 0, 17] / meranti_pred[meranti$MerantiAndMalakas != 0]) / 12.5
+
+rows_1 = NROW(soudelor[soudelor$Soudelor != 0,17])
+rows_2 = NROW(meranti[meranti$MerantiAndMalakas != 0, 17])
+
+sprintf("magic 1: %2.2f (%d), magic 2: %2.2f (%d)", magic_1, rows_1, magic_2, rows_2)
+
+# =================================================================================================
+
+# TODO: Set zero (All historical items)
+
+megi_pred <- magic_1*soudelor_pred
+nesatAndHaitang_pred <- magic_2*meranti_pred
+
+megi_pred[soudelor$Soudelor == 0] <- 0
+nesatAndHaitang_pred[meranti$MerantiAndMalakas == 0] <- 0
+
+# =================================================================================================
+
 pred <- cbind(soudelor_pred, meranti_pred)
 real <- cbind(soudelor$Soudelor, meranti$MerantiAndMalakas)
+Scoring(pred, real)
+
+pred <- cbind(soudelor_pred*magic_1, meranti_pred*magic_2)
+Scoring(pred, real)
+
+# =================================================================================================
+
+pred_1 = soudelor_pred
+pred_2 = meranti_pred
+
+pred_1[soudelor$Soudelor == 0] <- 0
+pred_2[meranti$MerantiAndMalakas == 0] <- 0
+
+pred <- cbind(pred_1, pred_2)
+real <- cbind(soudelor$Soudelor, meranti$MerantiAndMalakas)
+Scoring(pred, real)
+
+pred <- cbind(pred_1*magic_1, pred_2*magic_2)
 Scoring(pred, real)
 
 # =================================================================================================
