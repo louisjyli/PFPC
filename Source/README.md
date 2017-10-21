@@ -20,6 +20,10 @@
   - Paper survey - features, learning method
 
 # Log
+* 1021
+  - Set zero: Set the predicted value of a village to zero if the records of this village is always 0
+  - Set upper bound: the predicted value should not exceed the maximum of the historical records
+
 * 1019
   - Clean data - Pole (DONE: 1019)
   - Clean data - quts (DONE: 1019)
