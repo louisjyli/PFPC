@@ -262,3 +262,11 @@ Scoring <- function(real, pred) {
     message("score 2: ", score_2)
     message("  Final: ", score)
 }
+
+gen_predict <- function(model, raw, row_zero, row_max, magic_value=1) {
+    pd <- predict(model, newdata=raw) * magic_value
+    pd[row_zero] <- 0
+    pd <- apply(cbind(row_max, pd), 1, min)
+
+    return(pd)
+}

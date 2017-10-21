@@ -6,8 +6,8 @@
 # install.packages("randomForest")
 # install.packages("rJava")
 
-# setwd("~/Work/git/Power_Failure_Prediction/Source")
-setwd("~/Repo/Frank/Power_Failure_Prediction/Source")
+setwd("~/Work/git/Power_Failure_Prediction/Source")
+# setwd("~/Repo/Frank/Power_Failure_Prediction/Source")
 
 library(tidyverse)
 library(rJava)
@@ -40,6 +40,8 @@ gust   <- read.csv("./data/gust.csv",   fileEncoding="UTF-8")
 
 col_tp      <- c("Hagibis", "Chan.hom", "Dujuan", "Soudelor", "Fung.wong", "Matmo", "Nepartak", "MerantiAndMalakas")
 col_feature <- c("pole1", "pole2", "pole3", "pole4", "pole5", "pole6", "pole7", "pole8", "pole9", "pole10", "household", "maxWind", "gust")
+
+fp_max <- apply(train[, col_tp], 1, max)
 
 tmp_sum <- rowSums(train[, col_tp])
 row_zero <- which(tmp_sum == 0)
@@ -78,68 +80,39 @@ nesatAndHaitang <- left_join(nesatAndHaitang, gust[,c(1, 14:15)], by="CityName")
 
 # 建立隨機森林模型
 library(randomForest)
-names(soudelor)[18:19] <- c("maxWind", "gust")
-names(megi)[16:17]     <- c("maxWind", "gust")
-soudelor_rf <- randomForest(Soudelor~., data=soudelor[, -c(1:5)])
-soudelor_pred <- predict(soudelor_rf, newdata=soudelor[col_feature])
-
+names(soudelor)[18:19]        <- c("maxWind", "gust")
+names(megi)[16:17]            <- c("maxWind", "gust")
 names(meranti)[18:19]         <- c("maxWind", "gust")
 names(nesatAndHaitang)[16:17] <- c("maxWind", "gust")
-meranti_rf <- randomForest(MerantiAndMalakas~., data=meranti[, -c(1:5)])
-meranti_pred <- predict(meranti_rf, newdata=meranti[col_feature])
+
+soudelor_rf <- randomForest(Soudelor~.,          data=soudelor[, -c(1:5)])
+meranti_rf  <- randomForest(MerantiAndMalakas~., data=meranti[, -c(1:5)])
 
 # =================================================================================================
 
-magic_1 = mean(soudelor[soudelor$Soudelor != 0,17] / soudelor_pred[soudelor$Soudelor != 0])
-magic_2 = mean(meranti[meranti$MerantiAndMalakas != 0, 17] / meranti_pred[meranti$MerantiAndMalakas != 0]) / 12.5
-
-rows_1 = NROW(soudelor[soudelor$Soudelor != 0,17])
-rows_2 = NROW(meranti[meranti$MerantiAndMalakas != 0, 17])
-
-sprintf("magic 1: %2.2f (%d), magic 2: %2.2f (%d)", magic_1, rows_1, magic_2, rows_2)
+soudelor_pred        <- gen_predict(model=soudelor_rf, raw=soudelor[col_feature],        row_zero=row_zero, row_max=fp_max)
+meranti_pred         <- gen_predict(model=meranti_rf,  raw=meranti[col_feature],         row_zero=row_zero, row_max=fp_max)
+megi_pred            <- gen_predict(model=soudelor_rf, raw=megi[col_feature],            row_zero=row_zero, row_max=fp_max, magic_value=1.45)
+nesatAndHaitang_pred <- gen_predict(model=meranti_rf,  raw=nesatAndHaitang[col_feature], row_zero=row_zero, row_max=fp_max, magic_value=1.53)
 
 # =================================================================================================
 
-# TODO: Set zero (All historical items)
+soudelor_pred <- gen_predict(model=soudelor_rf, raw=soudelor[col_feature], row_zero=row_zero, row_max=fp_max)
+meranti_pred  <- gen_predict(model=meranti_rf,  raw=meranti[col_feature],  row_zero=row_zero, row_max=fp_max)
+tn_real <- cbind(soudelor$Soudelor, meranti$MerantiAndMalakas)
+tn_pred <- cbind(soudelor_pred, meranti_pred)
+Scoring(tn_pred, tn_real)
 
-megi_pred <- magic_1*soudelor_pred
-nesatAndHaitang_pred <- magic_2*meranti_pred
-
-megi_pred[soudelor$Soudelor == 0] <- 0
-nesatAndHaitang_pred[meranti$MerantiAndMalakas == 0] <- 0
-
-# =================================================================================================
-
-pred <- cbind(soudelor_pred, meranti_pred)
-real <- cbind(soudelor$Soudelor, meranti$MerantiAndMalakas)
-Scoring(pred, real)
-
-pred <- cbind(soudelor_pred*magic_1, meranti_pred*magic_2)
-Scoring(pred, real)
+soudelor_pred <- gen_predict(model=soudelor_rf, raw=soudelor[col_feature], row_zero=row_zero, row_max=fp_max, magic_value=1.45)
+meranti_pred  <- gen_predict(model=meranti_rf,  raw=meranti[col_feature],  row_zero=row_zero, row_max=fp_max, magic_value=1.53)
+tn_real <- cbind(soudelor$Soudelor, meranti$MerantiAndMalakas)
+tn_pred <- cbind(soudelor_pred, meranti_pred)
+Scoring(tn_pred, tn_real)
 
 # =================================================================================================
 
-pred_1 = soudelor_pred
-pred_2 = meranti_pred
-
-pred <- cbind(pred_1, pred_2)
-real <- cbind(soudelor$Soudelor, meranti$MerantiAndMalakas)
-Scoring(pred, real)
-
-pred_1[row_zero] <- 0
-pred_2[row_zero] <- 0
-
-pred <- cbind(pred_1, pred_2)
-real <- cbind(soudelor$Soudelor, meranti$MerantiAndMalakas)
-Scoring(pred, real)
-
-# =================================================================================================
-
-megi_pred            <- predict(soudelor_rf, newdata=megi[col_feature]) * 1.45
-nesatAndHaitang_pred <- predict(meranti_rf,  newdata=nesatAndHaitang[col_feature]) * 1.53
-
-megi_pred[row_zero] <- 0
-nesatAndHaitang_pred[row_zero] <- 0
+megi_pred            <- gen_predict(model=soudelor_rf, raw=megi[col_feature],            row_zero=row_zero, row_max=fp_max, magic_value=1.45)
+nesatAndHaitang_pred <- gen_predict(model=meranti_rf,  raw=nesatAndHaitang[col_feature], row_zero=row_zero, row_max=fp_max, magic_value=1.53)
 
 f_submit <- paste(c(pd_path, "submit_dc_", format(Sys.time(), "%m%d_%H%M%S"), ".csv"), collapse='')
 submit_dc <- cbind(submit[1:4], nesatAndHaitang_pred) %>% cbind(megi_pred)

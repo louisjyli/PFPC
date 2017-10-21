@@ -20,18 +20,22 @@
   - Paper survey - features, learning method
 
 # Log
-* 1017
-  - Create a github project and upload the source, and then share this project to Louis (DONE: 1017)
-* 1019  
+* 1019
   - Clean data - Pole (DONE: 1019)
   - Clean data - quts (DONE: 1019)
   - Add scoring function
   - Handle missing value after merge table (pole, household, set to zero)
 
-# Submit history
+* 1017
+  - Create a github project and upload the source, and then share this project to Louis (DONE: 1017)
 
-* Next?
+# Submit history
+* 57.40700_submit_dc_1020_233555.csv
+  - Set the upper bound of a prediction according to the power failure history
+
+* 57.33500_submit_dc_1020_061302.csv
   - Cleaning partial family data (correct district / village name)
+  - Set the prediction of a village to zero if this village has no record of power failure
 
 * submit_dc_1018_1449_56.67500.csv
   - Cleaning pole data (correct village name)
@@ -40,16 +44,3 @@
 * submit_dc_1015_vill_56.55600.csv
   - Integrating village-level data of pole, family (instead of district-level)
 
-* submit_dc_20171016_2356
-  - Change magic number
-  - megi_pred <- 1.48 x soudelor_pred
-  - megi_pred <- 1.45 x soudelor_pred
-
-  - nesatAndHaitang_pred <- 1.45 x meranti_pred
-  - nesatAndHaitang_pred <- 1.53 x meranti_pred
-
-* submit_dc_20171017_0224.csv
-  - Correct pole village info
-
-* submit_dc_20171017_0253.csv
-  - Use the original magic number
