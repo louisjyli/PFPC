@@ -236,15 +236,100 @@ gen_gust_info <- function() {
     write.csv(gust, file="./data/gust.csv", row.names=F, fileEncoding="UTF-8")
 }
 
+# =================================================================================================
+
+gen_village_info <- function(raw=train) {
+
+    pole   <- read.csv("./data/pole.csv",   fileEncoding="UTF-8", stringsAsFactors=F)
+    family <- read.csv("./data/family.csv", fileEncoding="UTF-8", stringsAsFactors=F)
+
+    col_sel <- c("CityName", "TownName", "VilName", "VilCode", "key")
+
+    raw$key  <- paste0(raw$CityName, raw$TownName, raw$VilName)
+    raw <- left_join(raw[col_sel], pole, by="key")
+    raw <- left_join(raw, family,  by="key")
+
+    # TODO: Correct family info
+    # Set the missing value to 0
+    raw[is.na(raw)] <- 0
+
+    return (raw)
+}
+
+# =================================================================================================
+
+gen_tp_raw <- function(vil, gust, tp, col_tp, is_training=T) {
+
+    col_city <- c("CityName")
+    raw <- list()
+
+    for (i in 1:NROW(col_tp)) {
+        tp_name  <- col_tp[i]
+        col_sel  <- c("VilCode", tp_name)
+
+        col_tp_maxWind <- paste0(tolower(tp_name), "_maxWind")
+        col_tp_gust    <- paste0(tolower(tp_name), "_gust")
+        col_gust       <- c(col_city, col_tp_maxWind, col_tp_gust)
+
+        if ((col_gust[2] %in% colnames(gust))) {
+            raw[[i]] <- left_join(vil, gust[, col_gust], by="CityName")
+
+            colnames(raw[[i]])[colnames(raw[[i]]) == tp_name] <- "tp"
+            colnames(raw[[i]])[colnames(raw[[i]]) == col_tp_maxWind] <- "maxWind"
+            colnames(raw[[i]])[colnames(raw[[i]]) == col_tp_gust]    <- "gust"
+
+            if (!is_training) 
+               next
+
+            raw[[i]] <- left_join(raw[[i]], tp[, col_sel], by="VilCode")
+            colnames(raw[[i]])[colnames(raw[[i]]) == tp_name] <- "tp"
+
+        } else {
+            message(paste0("[W] No info in table gust, skip: ", tp_name))
+        }
+    }
+
+    names(raw) <- col_tp 
+
+   return (raw)
+}
+
+# =================================================================================================
+
+build_rf_model <- function(raw, col_feature) {
+    rf <- list()
+
+    col_real <- c("tp")
+    col_sel  <- c(col_feature, col_real)
+
+    for (i in 1:length(raw)) {
+        if ( is.null(raw[[i]]) ) {
+            rf[[i]] <- NULL
+        } else {
+            rf[[i]] <- randomForest(tp~., data=raw[[i]][, col_sel])
+            real <- raw[[i]][, col_real]
+            pred <- gen_predict(model=rf[[i]], raw=raw[[i]][, col_feature], row_zero=row_zero, row_max=fp_max, magic_value=1.53)
+            score <- CM(real, pred)
+            message(sprintf("Training score: %2.6f - %s", score, names(raw[i])))
+        }
+    }
+
+    names(rf) <- names(raw)
+
+    return (rf)
+}
+
+# =================================================================================================
+
 #  Morisita Similarity (CM)
 CM <- function(x, y) {
     # Check variable type
     x <- as.numeric(x)
     y <- as.numeric(y)
-    
+
     x <- ifelse(x < 0, 0, x)
     y <- ifelse(y < 0, 0, y)
-    
+
     # The formula
     sim <- 2*sum(x*y)/(sum(x^2+y^2))
     

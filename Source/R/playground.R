@@ -11,6 +11,7 @@ setwd("~/Work/git/Power_Failure_Prediction/Source")
 
 library(tidyverse)
 library(rJava)
+library(randomForest)
 source("./R/util.R")
 
 # =================================================================================================
@@ -31,88 +32,59 @@ if ( !dir.exists(pd_path) ) {
 # 載入颱風停電戶資料
 train  <- read.csv("./data/train.csv",  fileEncoding="UTF-8")
 submit <- read.csv("./data/submit.csv", fileEncoding="UTF-8")
-pole   <- read.csv("./data/pole.csv",   fileEncoding="UTF-8", stringsAsFactors=F)
-family <- read.csv("./data/family.csv", fileEncoding="UTF-8", stringsAsFactors=F)
 gust   <- read.csv("./data/gust.csv",   fileEncoding="UTF-8")
+lastpd <- read.csv("./submit/57.40700_submit_dc_1020_233555.csv", fileEncoding="UTF-8")
 
 # =================================================================================================
 # Define column and row index
 
-col_tp      <- c("Hagibis", "Chan.hom", "Dujuan", "Soudelor", "Fung.wong", "Matmo", "Nepartak", "MerantiAndMalakas")
+col_tn_tp   <- c("Hagibis", "Chan.hom", "Dujuan", "Soudelor", "Fung.wong", "Matmo", "Nepartak", "MerantiAndMalakas")
+col_ts_tp   <- c("NesatAndHaitang", "Megi")
 col_feature <- c("pole1", "pole2", "pole3", "pole4", "pole5", "pole6", "pole7", "pole8", "pole9", "pole10", "household", "maxWind", "gust")
 
-fp_max <- apply(train[, col_tp], 1, max)
+fp_max <- apply(train[, col_tn_tp], 1, max)
 
-tmp_sum <- rowSums(train[, col_tp])
+tmp_sum <- rowSums(train[, col_tn_tp])
 row_zero <- which(tmp_sum == 0)
 row_none_zero <- which(tmp_sum > 0)
 
-sprintf("total rows: %d, zero: %d, non-zero: %d", NROW(tmp_sum), NROW(row_zero), NROW(row_none_zero))
+message(sprintf("total rows: %d, zero: %d, non-zero: %d", NROW(tmp_sum), NROW(row_zero), NROW(row_none_zero)))
 
 # =================================================================================================
 
-train$key  <- paste0(train$CityName, train$TownName, train$VilName) 
+vil_raw <- gen_village_info(raw=train)
 
-merged <- left_join(train, pole, by="key")
-merged <- left_join(merged, family, by="key")
+# =================================================================================================
+# Data pre-processing
 
-# TODO: Correct family info
-# Set the missing value to 0
-merged[is.na(merged)] <- 0
+raw_tn <- gen_tp_raw(vil=vil_raw, gust=gust, tp=train, col_tp=col_tn_tp)
+raw_ts <- gen_tp_raw(vil=vil_raw, gust=gust, tp=NULL,  col_tp=col_ts_tp, is_training=F)
+
+# Building up random forest model
+rf <- build_rf_model(raw_tn, col_feature=col_feature)
 
 # =================================================================================================
 
-submit_new <- left_join(submit, merged[, c(3, 14:24)], by="VilCode")
-
-# 將會用到的颱風資料先選出來
-soudelor        <- select(merged, c(1:4, 13:24, 8))
-meranti         <- select(merged, c(1:4, 13:24, 12))
-megi            <- select(submit_new, -c(5:6))
-nesatAndHaitang <- select(submit_new, -c(5:6))
-
-# Merge gust info
-soudelor        <- left_join(soudelor,        gust[,c(1:3)],      by="CityName")
-megi            <- left_join(megi,            gust[,c(1, 6:7)],   by="CityName")
-meranti         <- left_join(meranti,         gust[,c(1, 12:13)], by="CityName")
-nesatAndHaitang <- left_join(nesatAndHaitang, gust[,c(1, 14:15)], by="CityName")
+soudelor_pred        <- gen_predict(model=rf$Soudelor, raw=raw_tn$Soudelor[col_feature],        row_zero=row_zero, row_max=fp_max)
+meranti_pred         <- gen_predict(model=rf$Meranti,  raw=raw_tn$Meranti[col_feature],         row_zero=row_zero, row_max=fp_max)
+megi_pred            <- gen_predict(model=rf$Soudelor, raw=raw_ts$Megi[col_feature],            row_zero=row_zero, row_max=fp_max, magic_value=1.45)
+nesatAndHaitang_pred <- gen_predict(model=rf$Meranti,  raw=raw_ts$NesatAndHaitang[col_feature], row_zero=row_zero, row_max=fp_max, magic_value=1.53)
 
 # =================================================================================================
 
-# 建立隨機森林模型
-library(randomForest)
-names(soudelor)[18:19]        <- c("maxWind", "gust")
-names(megi)[16:17]            <- c("maxWind", "gust")
-names(meranti)[18:19]         <- c("maxWind", "gust")
-names(nesatAndHaitang)[16:17] <- c("maxWind", "gust")
-
-soudelor_rf <- randomForest(Soudelor~.,          data=soudelor[, -c(1:5)])
-meranti_rf  <- randomForest(MerantiAndMalakas~., data=meranti[, -c(1:5)])
-
-# =================================================================================================
-
-soudelor_pred        <- gen_predict(model=soudelor_rf, raw=soudelor[col_feature],        row_zero=row_zero, row_max=fp_max)
-meranti_pred         <- gen_predict(model=meranti_rf,  raw=meranti[col_feature],         row_zero=row_zero, row_max=fp_max)
-megi_pred            <- gen_predict(model=soudelor_rf, raw=megi[col_feature],            row_zero=row_zero, row_max=fp_max, magic_value=1.45)
-nesatAndHaitang_pred <- gen_predict(model=meranti_rf,  raw=nesatAndHaitang[col_feature], row_zero=row_zero, row_max=fp_max, magic_value=1.53)
-
-# =================================================================================================
-
-soudelor_pred <- gen_predict(model=soudelor_rf, raw=soudelor[col_feature], row_zero=row_zero, row_max=fp_max)
-meranti_pred  <- gen_predict(model=meranti_rf,  raw=meranti[col_feature],  row_zero=row_zero, row_max=fp_max)
-tn_real <- cbind(soudelor$Soudelor, meranti$MerantiAndMalakas)
-tn_pred <- cbind(soudelor_pred, meranti_pred)
-Scoring(tn_pred, tn_real)
-
-soudelor_pred <- gen_predict(model=soudelor_rf, raw=soudelor[col_feature], row_zero=row_zero, row_max=fp_max, magic_value=1.45)
-meranti_pred  <- gen_predict(model=meranti_rf,  raw=meranti[col_feature],  row_zero=row_zero, row_max=fp_max, magic_value=1.53)
-tn_real <- cbind(soudelor$Soudelor, meranti$MerantiAndMalakas)
-tn_pred <- cbind(soudelor_pred, meranti_pred)
+soudelor_pred <- gen_predict(model=rf$Soudelor, raw=raw_tn$Soudelor[col_feature], row_zero=row_zero, row_max=fp_max, magic_value=1.53)
+meranti_pred  <- gen_predict(model=rf$Meranti,  raw=raw_tn$Meranti[col_feature],  row_zero=row_zero, row_max=fp_max, magic_value=1.53)
+tn_real       <- cbind(train$Soudelor, train$MerantiAndMalakas)
+tn_pred       <- cbind(soudelor_pred, meranti_pred)
 Scoring(tn_pred, tn_real)
 
 # =================================================================================================
 
-megi_pred            <- gen_predict(model=soudelor_rf, raw=megi[col_feature],            row_zero=row_zero, row_max=fp_max, magic_value=1.45)
-nesatAndHaitang_pred <- gen_predict(model=meranti_rf,  raw=nesatAndHaitang[col_feature], row_zero=row_zero, row_max=fp_max, magic_value=1.53)
+ts_real <- cbind(lastpd$NesatAndHaitang, lastpd$Megi)
+ts_pred <- cbind(nesatAndHaitang_pred, megi_pred)
+Scoring(ts_pred, ts_real)
+
+# =================================================================================================
 
 f_submit <- paste(c(pd_path, "submit_dc_", format(Sys.time(), "%m%d_%H%M%S"), ".csv"), collapse='')
 submit_dc <- cbind(submit[1:4], nesatAndHaitang_pred) %>% cbind(megi_pred)
