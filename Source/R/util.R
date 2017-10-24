@@ -306,7 +306,7 @@ build_rf_model <- function(raw, col_feature) {
         if ( is.null(raw[[i]]) ) {
             rf[[i]] <- NULL
         } else {
-            rf[[i]] <- randomForest(tp~., data=raw[[i]][, col_sel])
+            rf[[i]] <- randomForest(tp~., data=raw[[i]][, col_sel],ntree=5000)
             real <- raw[[i]][, col_real]
             pred <- gen_predict(model=rf[[i]], raw=raw[[i]][, col_feature], row_zero=row_zero, row_max=fp_max, magic_value=1.53)
             score <- CM(real, pred)
